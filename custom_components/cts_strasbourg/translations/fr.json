@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connecter CTS Strasbourg",
+        "description": "Saisissez le jeton de votre compte Open Data CTS. Il est envoyé uniquement à api.cts-strasbourg.eu avec l’authentification HTTP Basic.",
+        "data": {
+          "api_token": "Jeton API CTS",
+          "scan_interval": "Fréquence d’actualisation (minutes)"
+        }
+      },
+      "select": {
+        "title": "Choisir les entités",
+        "description": "Choisissez zéro, un ou plusieurs arrêts de tram et parkings-relais. Ce choix pourra être modifié ultérieurement dans Configurer.",
+        "data": {
+          "tram_stops": "Arrêts de tram",
+          "parkings": "Parkings-relais (P+R)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Renouveler le jeton CTS",
+        "description": "La CTS a refusé le jeton enregistré. Saisissez un nouveau jeton.",
+        "data": {
+          "api_token": "Jeton API CTS"
+        }
+      },
+      "reconfigure": {
+        "title": "Remplacer le jeton CTS",
+        "description": "Saisissez un jeton Open Data CTS de remplacement.",
+        "data": {
+          "api_token": "Jeton API CTS"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de joindre l’API CTS",
+      "invalid_auth": "Le jeton API a été refusé par la CTS"
+    },
+    "abort": {
+      "already_configured": "CTS Strasbourg est déjà configuré",
+      "reauth_successful": "Jeton CTS renouvelé",
+      "reconfigure_successful": "Jeton CTS remplacé"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configurer CTS Strasbourg",
+        "description": "Choisissez les entités à conserver et la fréquence d’actualisation.",
+        "data": {
+          "tram_stops": "Arrêts de tram",
+          "parkings": "Parkings-relais (P+R)",
+          "scan_interval": "Fréquence d’actualisation (minutes)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de joindre l’API CTS",
+      "invalid_auth": "Le jeton API a été refusé par la CTS"
+    }
+  }
+}
