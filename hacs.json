@@ -1,0 +1,6 @@
+{
+  "name": "CTS Strasbourg",
+  "homeassistant": "2025.3.0",
+  "render_readme": true,
+  "country": ["FR"]
+}
