@@ -77,7 +77,26 @@ content: |
   {% for row in rows -%}
   | **{{ row['line'] }}**<br>{{ row['direction'] }} | **{{ (row['next'] or {}).get('minutes', '—') }} min**<br>{{ (row['next'] or {}).get('time', '') }} | **{{ (row['following'] or {}).get('minutes', '—') }} min**<br>{{ (row['following'] or {}).get('time', '') }} |
   {% endfor %}
+
+  _Données issues de CTS — API Open Data CTS. Dernière mise à jour : {{ state_attr(entity, 'recorded_at') or 'non communiquée' }}._
 ```
+
+## Licence et attribution des données CTS
+
+Le code source de cette intégration est distribué sous licence MIT. Cette licence ne s’applique qu’au code et à sa documentation : elle ne confère aucun droit sur les données, les marques ou les logos de la CTS.
+
+Les données récupérées au moment de l’utilisation restent soumises à la **Licence de réutilisation des informations publiques CTS** acceptée lors de l’accès au portail Open Data. Cette licence autorise la réutilisation, y compris commerciale, sous réserve notamment de :
+
+- mentionner la source CTS et la date de dernière mise à jour ;
+- ne pas altérer les données ni en dénaturer le sens ; les commentaires ou enrichissements doivent être clairement distingués des informations CTS ;
+- ne pas reproduire les marques ou logos CTS ;
+- ne pas présenter les données CTS comme étant couvertes par la licence MIT du projet.
+
+Toute carte, automatisation ou interface qui affiche ou retransmet ces données doit faire apparaître, de manière lisible, une mention telle que :
+
+> Données issues de CTS — API Open Data CTS. Dernière mise à jour : `<horodatage fourni par l’API>`.
+
+Pour les départs tram, l’horodatage est disponible dans l’attribut `recorded_at`. Pour les P+R, utilisez l’attribut `last_update`. Chaque installation doit utiliser son propre token Open Data CTS ; l’intégration ne contient ni token ni données CTS préchargées.
 
 ## Développement
 
