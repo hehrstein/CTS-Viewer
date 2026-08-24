@@ -21,6 +21,22 @@ Intégration Home Assistant pour les données temps réel de la Compagnie des Tr
 
 Le jeton est stocké uniquement dans la configuration Home Assistant. Ne le placez jamais dans un fichier YAML, un commit ou une issue GitHub.
 
+## Obtenir une clé API CTS
+
+L’intégration nécessite un token d’accès à l’API Open Data de la CTS.
+
+Pour obtenir ce token, contactez la CTS à l’adresse
+[open-data@cts-strasbourg.fr](mailto:open-data@cts-strasbourg.fr)
+afin de demander l’accès au portail Open Data.
+
+Une fois l’accès accordé, récupérez votre token depuis ce portail, puis
+saisissez-le lors de la configuration de l’intégration dans Home Assistant.
+
+> Ne partagez jamais votre token et ne l’ajoutez pas à un dépôt GitHub.
+> S’il est exposé, demandez sa révocation et générez-en un nouveau.
+
+Pour plus d’informations, consultez la [page Open Data de la CTS](https://www.cts-strasbourg.eu/fr/open-data/).
+
 ## Entités créées
 
 Pour chaque arrêt de tram sélectionné :
