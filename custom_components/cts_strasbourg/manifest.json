@@ -3,6 +3,7 @@
   "name": "CTS Strasbourg",
   "codeowners": ["@hehrstein"],
   "config_flow": true,
+  "dependencies": ["http"],
   "documentation": "https://github.com/hehrstein/CTS-Viewer",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/hehrstein/CTS-Viewer/issues",
