@@ -77,6 +77,7 @@ def make_entry(stops: list[str], parkings: list[str]) -> SimpleNamespace:
     """Create the minimal config-entry shape needed by the coordinator."""
     return SimpleNamespace(
         entry_id="test-entry",
+        async_on_unload=lambda callback: None,
         data={
             CONF_API_TOKEN: "test-token",
             CONF_TRAM_STOPS: stops,
