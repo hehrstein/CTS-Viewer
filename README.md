@@ -119,6 +119,15 @@ custom_components/cts_strasbourg/
 
 Exécutez les vérifications GitHub Actions HACS et Hassfest avant chaque publication.
 
+Pour exécuter les tests automatisés localement :
+
+```bash
+python -m pip install -r requirements_test.txt
+pytest
+```
+
+La suite couvre le cache CTS, les métadonnées SIRI, le parsing des départs et la sélection conditionnelle des appels API.
+
 ## Source de données
 
 - [API Open Data CTS](https://api.cts-strasbourg.eu/)
