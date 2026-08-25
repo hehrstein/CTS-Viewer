@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
@@ -31,7 +32,11 @@ async def test_setup_serves_lovelace_card_once(
     static_paths = AsyncMock()
     forward_setups = AsyncMock()
     monkeypatch.setattr(integration, "CTSDataUpdateCoordinator", FakeCoordinator)
-    monkeypatch.setattr(hass.http, "async_register_static_paths", static_paths)
+    monkeypatch.setattr(
+        hass,
+        "http",
+        SimpleNamespace(async_register_static_paths=static_paths),
+    )
     monkeypatch.setattr(
         hass.config_entries, "async_forward_entry_setups", forward_setups
     )
