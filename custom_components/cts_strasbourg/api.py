@@ -3,15 +3,36 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import datetime
-from typing import Any
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+import re
+from typing import Any, Generic, TypeVar
 
 import aiohttp
 
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.util import dt as dt_util
 
 from .const import API_BASE_URL, TRAM_LINE_REFS
+
+T = TypeVar("T")
+_CACHE_MAX_AGE_RE = re.compile(r"(?:^|,)\s*max-age\s*=\s*\"?(\d+)", re.IGNORECASE)
+_ISO_DURATION_RE = re.compile(
+    r"^PT(?:(?P<hours>\d+(?:\.\d+)?)H)?"
+    r"(?:(?P<minutes>\d+(?:\.\d+)?)M)?"
+    r"(?:(?P<seconds>\d+(?:\.\d+)?)S)?$"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class CTSApiResult(Generic[T]):
+    """Data returned by CTS together with its local cache metadata."""
+
+    data: T
+    fetched_at: datetime
+    cache_expires_at: datetime | None
+    from_cache: bool = False
 
 
 class CTSApiError(HomeAssistantError):
@@ -29,11 +50,32 @@ class CTSApiClient:
         """Initialize the client."""
         self._session = async_get_clientsession(hass)
         self._auth = aiohttp.BasicAuth(login=token, password="")
+        self._cache: dict[
+            tuple[str, tuple[tuple[str, str], ...]], CTSApiResult[dict[str, Any]]
+        ] = {}
 
     async def _async_get(
         self, path: str, params: dict[str, str | int] | None = None
-    ) -> dict[str, Any]:
-        """Fetch JSON without including credentials in errors."""
+    ) -> CTSApiResult[dict[str, Any]]:
+        """Fetch JSON, respecting CTS's response cache directives."""
+        cache_key = (
+            path,
+            tuple(
+                sorted(
+                    (str(key), str(value)) for key, value in (params or {}).items()
+                )
+            ),
+        )
+        now = dt_util.utcnow()
+        cached = self._cache.get(cache_key)
+        if cached and cached.cache_expires_at and cached.cache_expires_at > now:
+            return CTSApiResult(
+                data=cached.data,
+                fetched_at=cached.fetched_at,
+                cache_expires_at=cached.cache_expires_at,
+                from_cache=True,
+            )
+
         try:
             async with self._session.get(
                 f"{API_BASE_URL}{path}",
@@ -49,6 +91,10 @@ class CTSApiClient:
                         f"CTS API returned HTTP {response.status} for {path}"
                     )
                 payload = await response.json(content_type=None)
+                fetched_at = dt_util.utcnow()
+                cache_expires_at = _cache_expires_at(
+                    payload, response.headers.get("Cache-Control"), fetched_at
+                )
         except aiohttp.ClientError as err:
             raise CTSApiError("Unable to connect to the CTS API") from err
         except TimeoutError as err:
@@ -56,31 +102,55 @@ class CTSApiClient:
 
         if not isinstance(payload, dict):
             raise CTSApiError("CTS API returned an unexpected response")
-        return payload
+        result = CTSApiResult(
+            data=payload,
+            fetched_at=fetched_at,
+            cache_expires_at=cache_expires_at,
+        )
+        if cache_expires_at and cache_expires_at > fetched_at:
+            self._cache[cache_key] = result
+        return result
 
     async def async_get_parkings(self) -> dict[str, dict[str, Any]]:
         """Return P+R data keyed by their CTS designation."""
-        payload = await self._async_get("/cts/park-and-ride")
-        parkings = payload.get("ParkAndRide", [])
+        return (await self.async_get_parkings_result()).data
+
+    async def async_get_parkings_result(
+        self,
+    ) -> CTSApiResult[dict[str, dict[str, Any]]]:
+        """Return P+R data and the timestamp at which CTS supplied it."""
+        response = await self._async_get("/cts/park-and-ride")
+        parkings = response.data.get("ParkAndRide", [])
         if not isinstance(parkings, list):
             raise CTSApiError("CTS parking response has an unexpected format")
 
-        return {
-            designation: parking
-            for parking in parkings
-            if isinstance(parking, dict)
-            and isinstance((designation := parking.get("Designation")), str)
-        }
+        return CTSApiResult(
+            data={
+                designation: parking
+                for parking in parkings
+                if isinstance(parking, dict)
+                and isinstance((designation := parking.get("Designation")), str)
+            },
+            fetched_at=response.fetched_at,
+            cache_expires_at=response.cache_expires_at,
+            from_cache=response.from_cache,
+        )
 
     async def async_get_tram_stops(self) -> list[dict[str, Any]]:
         """Discover logical tram stops for the configuration selector."""
-        payload = await self._async_get(
+        return (await self.async_get_tram_stops_result()).data
+
+    async def async_get_tram_stops_result(self) -> CTSApiResult[list[dict[str, Any]]]:
+        """Discover logical tram stops and retain CTS response metadata."""
+        response = await self._async_get(
             "/siri/2.0/stoppoints-discovery",
             {"includeLinesDestinations": "true"},
         )
-        delivery = _get_delivery(payload, "StopPointsDelivery")
+        delivery = _get_delivery(response.data, "StopPointsDelivery")
         raw_stops = _as_list(
-            delivery.get("AnnotatedStopPointRef") if isinstance(delivery, dict) else None
+            delivery.get("AnnotatedStopPointRef")
+            if isinstance(delivery, dict)
+            else None
         )
 
         stops: dict[str, dict[str, Any]] = {}
@@ -110,20 +180,26 @@ class CTSApiClient:
             )
             existing["lines"].update(lines)
 
-        return [
-            {
-                "code": stop["code"],
-                "name": stop["name"],
-                "lines": sorted(stop["lines"]),
-                "label": (
-                    f"{stop['name']} ({stop['code']}) — "
-                    f"{', '.join(sorted(stop['lines']))}"
-                ),
-            }
-            for stop in sorted(
-                stops.values(), key=lambda item: (item["name"].casefold(), item["code"])
-            )
-        ]
+        return CTSApiResult(
+            data=[
+                {
+                    "code": stop["code"],
+                    "name": stop["name"],
+                    "lines": sorted(stop["lines"]),
+                    "label": (
+                        f"{stop['name']} ({stop['code']}) — "
+                        f"{', '.join(sorted(stop['lines']))}"
+                    ),
+                }
+                for stop in sorted(
+                    stops.values(),
+                    key=lambda item: (item["name"].casefold(), item["code"]),
+                )
+            ],
+            fetched_at=response.fetched_at,
+            cache_expires_at=response.cache_expires_at,
+            from_cache=response.from_cache,
+        )
 
     async def async_get_general_messages(self) -> list[dict[str, Any]]:
         """Return current CTS traffic and works messages.
@@ -132,8 +208,14 @@ class CTSApiClient:
         rather than to a physical platform. The coordinator matches them to
         the tram lines that serve each selected logical stop.
         """
-        payload = await self._async_get("/siri/2.0/general-message")
-        delivery = _get_delivery(payload, "GeneralMessageDelivery")
+        return (await self.async_get_general_messages_result()).data
+
+    async def async_get_general_messages_result(
+        self,
+    ) -> CTSApiResult[list[dict[str, Any]]]:
+        """Return current CTS messages and their cache metadata."""
+        response = await self._async_get("/siri/2.0/general-message")
+        delivery = _get_delivery(response.data, "GeneralMessageDelivery")
         messages = [
             message
             for item in _as_list(delivery)
@@ -143,11 +225,22 @@ class CTSApiClient:
             and (message := _normalise_message(info_message)) is not None
         ]
         messages.sort(key=lambda item: (item["priority"], item["title"]))
-        return messages
+        return CTSApiResult(
+            data=messages,
+            fetched_at=response.fetched_at,
+            cache_expires_at=response.cache_expires_at,
+            from_cache=response.from_cache,
+        )
 
     async def async_get_departures(self, stop_code: str) -> list[dict[str, Any]]:
         """Return the upcoming tram departures for one logical stop."""
-        payload = await self._async_get(
+        return (await self.async_get_departures_result(stop_code)).data
+
+    async def async_get_departures_result(
+        self, stop_code: str
+    ) -> CTSApiResult[list[dict[str, Any]]]:
+        """Return tram departures and the response cache metadata."""
+        response = await self._async_get(
             "/siri/2.0/stop-monitoring",
             {
                 "MonitoringRef": stop_code,
@@ -155,14 +248,94 @@ class CTSApiClient:
                 "MaximumStopVisits": 20,
             },
         )
-        delivery = _get_delivery(payload, "StopMonitoringDelivery")
+        delivery = _get_delivery(response.data, "StopMonitoringDelivery")
         departures = [
             departure
             for visit in _iter_visits(delivery)
             if (departure := _normalise_departure(visit)) is not None
         ]
         departures.sort(key=_departure_sort_key)
-        return departures
+        return CTSApiResult(
+            data=departures,
+            fetched_at=response.fetched_at,
+            cache_expires_at=response.cache_expires_at,
+            from_cache=response.from_cache,
+        )
+
+
+def _cache_expires_at(
+    payload: Any, cache_control: str | None, fetched_at: datetime
+) -> datetime | None:
+    """Return the first moment at which CTS data should be requested again."""
+    cache_control = (cache_control or "").casefold()
+    if "no-store" in cache_control or "no-cache" in cache_control:
+        return None
+
+    max_age = _CACHE_MAX_AGE_RE.search(cache_control)
+    if max_age:
+        return fetched_at + timedelta(seconds=int(max_age.group(1)))
+
+    return _payload_cache_expires_at(payload, fetched_at)
+
+
+def _payload_cache_expires_at(payload: Any, fetched_at: datetime) -> datetime | None:
+    """Use SIRI validity metadata when an HTTP cache directive is absent."""
+    if not isinstance(payload, dict):
+        return None
+
+    candidates: list[datetime] = []
+    for delivery in _iter_deliveries_for_cache_metadata(payload):
+        valid_until = _parse_api_datetime(delivery.get("ValidUntil"))
+        if valid_until and valid_until > fetched_at:
+            candidates.append(valid_until)
+
+        cycle = _parse_shortest_possible_cycle(delivery.get("ShortestPossibleCycle"))
+        if cycle:
+            candidates.append(fetched_at + cycle)
+
+    return min(candidates, default=None)
+
+
+def _iter_deliveries_for_cache_metadata(
+    payload: dict[str, Any],
+) -> Iterable[dict[str, Any]]:
+    """Yield SIRI delivery objects that can carry freshness metadata."""
+    service_delivery = payload.get("ServiceDelivery")
+    if isinstance(service_delivery, dict):
+        yield service_delivery
+        values = service_delivery.values()
+    else:
+        values = payload.values()
+
+    for value in values:
+        for item in _as_list(value):
+            if isinstance(item, dict):
+                yield item
+
+
+def _parse_api_datetime(value: Any) -> datetime | None:
+    """Parse a CTS ISO-8601 timestamp as UTC."""
+    if not isinstance(value, str):
+        return None
+    parsed = dt_util.parse_datetime(value)
+    return dt_util.as_utc(parsed) if parsed else None
+
+
+def _parse_shortest_possible_cycle(value: Any) -> timedelta | None:
+    """Parse the SIRI ``ShortestPossibleCycle`` duration when supplied."""
+    if isinstance(value, (int, float)) and value > 0:
+        return timedelta(seconds=value)
+    if not isinstance(value, str):
+        return None
+
+    match = _ISO_DURATION_RE.match(value)
+    if not match:
+        return None
+    seconds = sum(
+        float(match.group(name) or 0) * multiplier
+        for name, multiplier in (("hours", 3600), ("minutes", 60), ("seconds", 1))
+    )
+    return timedelta(seconds=seconds) if seconds > 0 else None
 
 
 def _get_delivery(payload: dict[str, Any], key: str) -> dict[str, Any] | list[Any]:

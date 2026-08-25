@@ -7,6 +7,7 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "cts_strasbourg"
 API_BASE_URL: Final = "https://api.cts-strasbourg.eu/v1"
+DATA_ATTRIBUTION: Final = "Données issues de CTS — API Open Data CTS"
 
 CONF_API_TOKEN: Final = "api_token"
 CONF_TRAM_STOPS: Final = "tram_stops"

@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import CTSApiAuthenticationError, CTSApiClient, CTSApiError
+from .api import CTSApiAuthenticationError, CTSApiClient, CTSApiError, CTSApiResult
 from .const import (
     CONF_API_TOKEN,
     CONF_PARKINGS,
@@ -76,15 +76,20 @@ class CTSDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if isinstance(stop.get("code"), str)
                     and stop["code"] in self._tram_stops
                 }
-            parking_task = self._client.async_get_parkings()
-            messages_task = self._client.async_get_general_messages()
-            departures_tasks = [
-                self._client.async_get_departures(stop_code)
-                for stop_code in self._tram_stops
-            ]
-            results = await asyncio.gather(
-                parking_task, messages_task, *departures_tasks
-            )
+
+            request_keys: list[tuple[str, str | None]] = []
+            requests: list[Any] = []
+            if self._parkings:
+                request_keys.append(("parkings", None))
+                requests.append(self._client.async_get_parkings_result())
+            if self._tram_stops:
+                request_keys.append(("messages", None))
+                requests.append(self._client.async_get_general_messages_result())
+                for stop_code in self._tram_stops:
+                    request_keys.append(("departures", stop_code))
+                    requests.append(self._client.async_get_departures_result(stop_code))
+
+            results = await asyncio.gather(*requests)
         except CTSApiAuthenticationError as err:
             raise ConfigEntryAuthFailed(
                 "CTS API token is no longer accepted"
@@ -92,14 +97,26 @@ class CTSDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except CTSApiError as err:
             raise UpdateFailed(str(err)) from err
 
-        all_parkings = results[0]
-        messages = results[1]
+        parking_result: CTSApiResult[dict[str, dict[str, Any]]] | None = None
+        messages_result: CTSApiResult[list[dict[str, Any]]] | None = None
+        departure_results: dict[str, CTSApiResult[list[dict[str, Any]]]] = {}
+        for (request_type, key), result in zip(request_keys, results, strict=True):
+            if request_type == "parkings":
+                parking_result = result
+            elif request_type == "messages":
+                messages_result = result
+            elif key is not None:
+                departure_results[key] = result
+
+        all_parkings = parking_result.data if parking_result else {}
+        messages = messages_result.data if messages_result else []
         selected_parkings = {
             name: all_parkings[name] for name in self._parkings if name in all_parkings
         }
         departures = {
-            stop_code: value
-            for stop_code, value in zip(self._tram_stops, results[2:], strict=True)
+            stop_code: departure_results[stop_code].data
+            for stop_code in self._tram_stops
+            if stop_code in departure_results
         }
         return {
             "parkings": selected_parkings,
@@ -112,6 +129,14 @@ class CTSDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     departures.get(stop_code, []),
                 )
                 for stop_code in self._tram_stops
+            },
+            "metadata": {
+                "parkings": _result_metadata(parking_result),
+                "messages": _result_metadata(messages_result),
+                "departures": {
+                    stop_code: _result_metadata(departure_results.get(stop_code))
+                    for stop_code in self._tram_stops
+                },
             },
         }
 
@@ -126,6 +151,21 @@ def _as_string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         value = [value] if value else []
     return list(dict.fromkeys(str(item) for item in value if item))
+
+
+def _result_metadata(result: CTSApiResult[Any] | None) -> dict[str, Any]:
+    """Expose a consistent freshness contract to every sensor."""
+    if result is None:
+        return {}
+    return {
+        "fetched_at": result.fetched_at.isoformat(),
+        "cache_expires_at": (
+            result.cache_expires_at.isoformat()
+            if result.cache_expires_at is not None
+            else None
+        ),
+        "from_cache": result.from_cache,
+    }
 
 
 def _messages_for_stop(

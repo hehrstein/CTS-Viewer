@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
+from .const import DATA_ATTRIBUTION, DOMAIN
 from .coordinator import CTSDataUpdateCoordinator
 
 
@@ -46,6 +46,32 @@ async def async_setup_entry(
 
 class CTSCoordinatorEntity(CoordinatorEntity[CTSDataUpdateCoordinator]):
     """Base entity bound to the CTS shared coordinator."""
+
+    _attr_attribution = DATA_ATTRIBUTION
+
+    def _freshness_attributes(
+        self, *source_metadata: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        """Return the same source and cache metadata for every entity."""
+        sources = [metadata for metadata in source_metadata if metadata]
+        fetched_at = [
+            str(metadata["fetched_at"])
+            for metadata in sources
+            if metadata.get("fetched_at")
+        ]
+        cache_expires_at = [
+            str(metadata["cache_expires_at"])
+            for metadata in sources
+            if metadata.get("cache_expires_at")
+        ]
+        return {
+            "data_source": DATA_ATTRIBUTION,
+            "data_updated_at": min(fetched_at, default=None),
+            "data_cache_expires_at": min(cache_expires_at, default=None),
+            "data_from_cache": bool(sources) and all(
+                bool(metadata.get("from_cache")) for metadata in sources
+            ),
+        }
 
 
 class CTSNextTramSensor(CTSCoordinatorEntity, SensorEntity):
@@ -95,7 +121,12 @@ class CTSNextTramSensor(CTSCoordinatorEntity, SensorEntity):
         )
         first = departures[0] if departures else {}
         board_rows = _departure_board_rows(departures)
+        metadata = self.coordinator.data.get("metadata", {})
         return {
+            **self._freshness_attributes(
+                metadata.get("departures", {}).get(self._stop_code),
+                metadata.get("messages"),
+            ),
             "stop_code": self._stop_code,
             "stop_name": first.get("stop_name"),
             "line": first.get("line"),
@@ -165,6 +196,11 @@ class CTSDeparturesByDirectionSensor(CTSCoordinatorEntity, SensorEntity):
             self._stop_code, []
         )
         return {
+            **self._freshness_attributes(
+                self.coordinator.data.get("metadata", {})
+                .get("departures", {})
+                .get(self._stop_code)
+            ),
             "stop_code": self._stop_code,
             "directions": _departures_by_direction(departures),
             "board_rows": _departure_board_rows(departures),
@@ -208,6 +244,9 @@ class CTSStopInformationSensor(CTSCoordinatorEntity, SensorEntity):
     def extra_state_attributes(self) -> dict[str, Any]:
         """Expose all current works and traffic messages for this stop."""
         return {
+            **self._freshness_attributes(
+                self.coordinator.data.get("metadata", {}).get("messages")
+            ),
             "stop_code": self._stop_code,
             "lines_served": self.coordinator.data.get("stop_metadata", {})
             .get(self._stop_code, {})
@@ -269,6 +308,9 @@ class CTSParkingAvailabilitySensor(CTSCoordinatorEntity, SensorEntity):
             else None
         )
         return {
+            **self._freshness_attributes(
+                self.coordinator.data.get("metadata", {}).get("parkings")
+            ),
             "parking": self._parking,
             "total_capacity": total,
             "occupancy_percentage": occupancy,

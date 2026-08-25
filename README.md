@@ -98,6 +98,17 @@ Toute carte, automatisation ou interface qui affiche ou retransmet ces données 
 
 Pour les départs tram, l’horodatage est disponible dans l’attribut `recorded_at`. Pour les P+R, utilisez l’attribut `last_update`. Chaque installation doit utiliser son propre token Open Data CTS ; l’intégration ne contient ni token ni données CTS préchargées.
 
+## Fraîcheur et cache des données
+
+Chaque entité expose les mêmes attributs de suivi :
+
+- `attribution` et `data_source` : source officielle des données ;
+- `data_updated_at` : moment où la réponse a été obtenue auprès de la CTS ;
+- `data_cache_expires_at` : moment avant lequel la réponse reste réutilisable ;
+- `data_from_cache` : indique que toutes les données affichées par l’entité proviennent du cache local.
+
+L’intégration respecte l’en-tête HTTP `Cache-Control` fourni par l’API CTS. En son absence, elle utilise les métadonnées SIRI `ValidUntil` et `ShortestPossibleCycle` lorsqu’elles sont disponibles. Elle n’interroge les P+R que si au moins un P+R est configuré, et les départs/messages trafic que si au moins un arrêt tram est configuré.
+
 ## Développement
 
 La structure HACS est la suivante :
