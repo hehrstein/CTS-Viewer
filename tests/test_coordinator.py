@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from homeassistant.util import dt as dt_util
 
@@ -73,11 +73,11 @@ class FakeCTSApiClient:
         )
 
 
-def make_entry(stops: list[str], parkings: list[str]) -> SimpleNamespace:
-    """Create the minimal config-entry shape needed by the coordinator."""
-    return SimpleNamespace(
+def make_entry(stops: list[str], parkings: list[str]) -> MockConfigEntry:
+    """Create a Home Assistant config entry for the coordinator."""
+    return MockConfigEntry(
+        domain="cts_strasbourg",
         entry_id="test-entry",
-        async_on_unload=lambda callback: None,
         data={
             CONF_API_TOKEN: "test-token",
             CONF_TRAM_STOPS: stops,
