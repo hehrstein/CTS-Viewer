@@ -120,6 +120,9 @@ class CTSNextTramSensor(CTSCoordinatorEntity, SensorEntity):
             self._stop_code, []
         )
         first = departures[0] if departures else {}
+        stop_metadata = self.coordinator.data.get("stop_metadata", {}).get(
+            self._stop_code, {}
+        )
         board_rows = _departure_board_rows(departures)
         metadata = self.coordinator.data.get("metadata", {})
         return {
@@ -128,7 +131,7 @@ class CTSNextTramSensor(CTSCoordinatorEntity, SensorEntity):
                 metadata.get("messages"),
             ),
             "stop_code": self._stop_code,
-            "stop_name": first.get("stop_name"),
+            "stop_name": first.get("stop_name") or stop_metadata.get("name"),
             "line": first.get("line"),
             "destination": first.get("destination"),
             "via": first.get("via"),

@@ -2,18 +2,41 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN, PLATFORMS
+from .const import (
+    DATA_LOVELACE_CARD_REGISTERED,
+    DOMAIN,
+    LOVELACE_CARD_URL,
+    PLATFORMS,
+)
 from .coordinator import CTSDataUpdateCoordinator
+
+_LOVELACE_CARD_PATH = Path(__file__).parent / "frontend" / "cts-departures-card.js"
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up CTS Strasbourg from a config entry."""
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    if not domain_data.get(DATA_LOVELACE_CARD_REGISTERED):
+        await hass.http.async_register_static_paths(
+            [
+                StaticPathConfig(
+                    LOVELACE_CARD_URL,
+                    str(_LOVELACE_CARD_PATH),
+                    cache_headers=False,
+                )
+            ]
+        )
+        domain_data[DATA_LOVELACE_CARD_REGISTERED] = True
+
     coordinator = CTSDataUpdateCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    domain_data[entry.entry_id] = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))

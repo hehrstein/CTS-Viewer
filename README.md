@@ -8,6 +8,7 @@ Intégration Home Assistant pour les données temps réel de la Compagnie des Tr
 
 - Prochains trams pour les arrêts sélectionnés, avec ligne, direction, heure et temps restant.
 - Attribut `board_rows` prêt à l'emploi pour créer un afficheur Lovelace avec le prochain et le suivant tram pour chaque ligne et direction.
+- Carte Lovelace CTS dédiée : une ligne par tram et destination, avec les colonnes prochain et suivant.
 - Informations trafic : travaux, perturbations et messages CTS pertinents pour l'arrêt.
 - Places libres, capacité et taux d'occupation des parkings-relais (P+R).
 - Actualisation configurable de 1 à 15 minutes.
@@ -80,6 +81,29 @@ content: |
 
   _Données issues de CTS — API Open Data CTS. Dernière mise à jour : {{ state_attr(entity, 'recorded_at') or 'non communiquée' }}._
 ```
+
+## Carte Lovelace CTS
+
+La carte `CTS départs tram` est fournie avec l’intégration. Elle affiche, pour chaque ligne et destination, les deux prochains passages ainsi que les éventuelles informations trafic.
+
+Après avoir redémarré Home Assistant avec l’intégration installée, ajoutez une seule fois la ressource suivante dans **Paramètres → Tableaux de bord → Ressources** :
+
+```text
+URL : /cts_strasbourg/cts-departures-card.js
+Type : Module JavaScript
+```
+
+Ajoutez ensuite une carte manuelle au tableau de bord :
+
+```yaml
+type: custom:cts-departures-card
+entity: sensor.cts_arret_tram_597_prochains_trams
+title: Départs tram
+max_rows: 6
+show_traffic: true
+```
+
+Remplacez `entity` par l’entité **Prochains trams** de l’arrêt choisi. `title`, `max_rows` et `show_traffic` sont facultatifs. La carte n’affiche pas les identifiants techniques de direction : seule la destination CTS est présentée.
 
 ## Licence et attribution des données CTS
 
