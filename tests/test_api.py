@@ -53,11 +53,16 @@ class FakeSession:
         return FakeResponse({"payload": "cached"}, "public, max-age=60")
 
 
-async def test_client_reuses_response_until_cache_expiry(hass) -> None:
+async def test_client_reuses_response_until_cache_expiry(
+    hass, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A CTS cache directive prevents an identical second API call."""
-    client = CTSApiClient(hass, "test-token")
     session = FakeSession()
-    client._session = session
+    monkeypatch.setattr(
+        "custom_components.cts_strasbourg.api.async_get_clientsession",
+        lambda hass: session,
+    )
+    client = CTSApiClient(hass, "test-token")
 
     first = await client._async_get("/example", {"line": "A"})
     second = await client._async_get("/example", {"line": "A"})
@@ -101,6 +106,10 @@ async def test_departures_preserve_line_direction_and_realtime_metadata(
     hass, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A normalized departure retains values needed by the departure board."""
+    monkeypatch.setattr(
+        "custom_components.cts_strasbourg.api.async_get_clientsession",
+        lambda hass: FakeSession(),
+    )
     client = CTSApiClient(hass, "test-token")
     fetched_at = dt_util.utcnow()
     payload = {
