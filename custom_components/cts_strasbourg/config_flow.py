@@ -162,24 +162,18 @@ class CTSStrasbourgConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> CTSStrasbourgOptionsFlow:
         """Return the options flow for this integration."""
-        return CTSStrasbourgOptionsFlow(config_entry)
+        return CTSStrasbourgOptionsFlow()
 
 
 class CTSStrasbourgOptionsFlow(config_entries.OptionsFlow):
     """Handle changes to selected CTS stops, P+R, and refresh interval."""
-
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize the options flow."""
-        self.config_entry = config_entry
-        self._stop_options: list[dict[str, str]] = []
-        self._parking_options: list[dict[str, str]] = []
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Show the current CTS selections and save new ones."""
         errors: dict[str, str] = {}
-        if not self._stop_options:
+        if not hasattr(self, "_stop_options"):
             try:
                 self._stop_options, self._parking_options = await _async_load_choices(
                     self.hass, self.config_entry.data[CONF_API_TOKEN]
