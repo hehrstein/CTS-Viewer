@@ -10,6 +10,10 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.cts_strasbourg import config_flow
+from custom_components.cts_strasbourg.api import (
+    CTSApiAuthenticationError,
+    CTSApiError,
+)
 from custom_components.cts_strasbourg.const import (
     CONF_API_TOKEN,
     CONF_PARKINGS,
@@ -48,3 +52,41 @@ async def test_options_flow_opens_for_an_existing_entry(
 
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "init"
+
+
+@pytest.mark.parametrize(
+    ("api_error", "expected_error"),
+    [
+        (CTSApiError, "cannot_connect"),
+        (CTSApiAuthenticationError, "invalid_auth"),
+    ],
+)
+async def test_options_flow_renders_api_connection_error(
+    hass,
+    monkeypatch: pytest.MonkeyPatch,
+    api_error: type[CTSApiError],
+    expected_error: str,
+) -> None:
+    """Options renders CTS errors instead of crashing."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_API_TOKEN: "test-token",
+            CONF_SCAN_INTERVAL: 1,
+            CONF_TRAM_STOPS: ["123"],
+            CONF_PARKINGS: [],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    async def raise_api_error(_hass: Any, _token: str) -> None:
+        """Simulate a CTS API failure while loading options."""
+        raise api_error("CTS unavailable")
+
+    monkeypatch.setattr(config_flow, "_async_load_choices", raise_api_error)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "init"
+    assert result["errors"] == {"base": expected_error}

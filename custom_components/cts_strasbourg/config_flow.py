@@ -174,14 +174,19 @@ class CTSStrasbourgOptionsFlow(config_entries.OptionsFlow):
         """Show the current CTS selections and save new ones."""
         errors: dict[str, str] = {}
         if not hasattr(self, "_stop_options"):
+            self._stop_options: list[dict[str, str]] = []
+            self._parking_options: list[dict[str, str]] = []
             try:
-                self._stop_options, self._parking_options = await _async_load_choices(
+                stop_options, parking_options = await _async_load_choices(
                     self.hass, self.config_entry.data[CONF_API_TOKEN]
                 )
             except CTSApiAuthenticationError:
                 errors["base"] = "invalid_auth"
             except CTSApiError:
                 errors["base"] = "cannot_connect"
+            else:
+                self._stop_options = stop_options
+                self._parking_options = parking_options
 
         if user_input is not None and not errors:
             return self.async_create_entry(
