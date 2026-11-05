@@ -1,0 +1,62 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect CTS Strasbourg",
+        "description": "Enter the token from your CTS Open Data account. It is sent only to api.cts-strasbourg.eu using HTTP Basic authentication.",
+        "data": {
+          "api_token": "CTS API token",
+          "scan_interval": "Refresh interval (minutes)"
+        }
+      },
+      "select": {
+        "title": "Choose entities",
+        "description": "Choose zero or more tram stops and Park-and-Ride car parks. You can change this later in Configure.",
+        "data": {
+          "tram_stops": "Tram stops",
+          "parkings": "Park-and-Ride car parks"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Renew CTS token",
+        "description": "CTS rejected the saved token. Enter a new token.",
+        "data": {
+          "api_token": "CTS API token"
+        }
+      },
+      "reconfigure": {
+        "title": "Replace CTS token",
+        "description": "Enter a replacement CTS Open Data token.",
+        "data": {
+          "api_token": "CTS API token"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to contact the CTS API",
+      "invalid_auth": "CTS rejected this API token"
+    },
+    "abort": {
+      "already_configured": "CTS Strasbourg is already configured",
+      "reauth_successful": "CTS token renewed",
+      "reconfigure_successful": "CTS token replaced"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure CTS Strasbourg",
+        "description": "Choose the entities to keep and the refresh interval.",
+        "data": {
+          "tram_stops": "Tram stops",
+          "parkings": "Park-and-Ride car parks",
+          "scan_interval": "Refresh interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to contact the CTS API",
+      "invalid_auth": "CTS rejected this API token"
+    }
+  }
+}
