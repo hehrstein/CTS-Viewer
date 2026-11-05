@@ -15,10 +15,18 @@ Intégration Home Assistant pour les données temps réel de la Compagnie des Tr
 
 ## Installation avec HACS
 
-1. Dans HACS, ouvrez **Intégrations** puis le menu ⋮ et choisissez **Dépôts personnalisés**.
+1. Dans HACS, ouvrez **Intégrations** puis **Explorer et télécharger des dépôts**.
+2. Recherchez **CTS Strasbourg** et sélectionnez l'intégration.
+3. Cliquez sur **Télécharger**, puis redémarrez Home Assistant.
+4. Ouvrez **Paramètres → Appareils et services → Ajouter une intégration**, recherchez **CTS Strasbourg**, puis saisissez votre jeton personnel CTS.
+
+### Dépôt personnalisé (solution de secours)
+
+Si l'intégration n'apparaît pas encore dans la recherche HACS, ou pour installer une version non publiée :
+
+1. Dans HACS, ouvrez **Intégrations**, puis le menu ⋮ et choisissez **Dépôts personnalisés**.
 2. Ajoutez `https://github.com/hehrstein/CTS-Viewer` avec la catégorie **Integration**.
 3. Installez **CTS Strasbourg**, puis redémarrez Home Assistant.
-4. Ouvrez **Paramètres → Appareils et services → Ajouter une intégration**, recherchez **CTS Strasbourg**, puis saisissez votre jeton personnel CTS.
 
 Le jeton est stocké uniquement dans la configuration Home Assistant. Ne le placez jamais dans un fichier YAML, un commit ou une issue GitHub.
 
